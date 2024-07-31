@@ -5,14 +5,14 @@ const bodyParser = require('body-parser');
 
 // INIT EXPRESS
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000; // Sử dụng cổng từ biến môi trường của Heroku
 
 // CONFIG AGORA
 const APP_ID = '8a2ac699a8c84f3f894f59e55e766fa4';
 const APP_CERTIFICATE = '4c982f62b66a41e497009008aa7d10d7';
 
 // CONFIG FIREBASE ADMIN SDK
-const serviceAccount = require('./hash-balance-official-firebase-adminsdk-j5529-346365380d.json');
+const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
