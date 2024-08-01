@@ -9,17 +9,28 @@ const app = express();
 const port = process.env.PORT || 3000; // Sử dụng cổng từ biến môi trường của Heroku
 
 // CONFIG AGORA
-const APP_ID = '8a2ac699a8c84f3f894f59e55e766fa4';
-const APP_CERTIFICATE = '4c982f62b66a41e497009008aa7d10d7';
+const APP_ID = process.env.AGORA_APP_ID;
+const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
 // CONFIG FIREBASE ADMIN SDK
-let serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+const serviceAccount = {
+  type: process.env.TYPE,
+  project_id: process.env.PROJECT_ID,
+  private_key_id: process.env.PRIVATE_KEY_ID,
+  private_key: process.env.PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.CLIENT_EMAIL,
+  client_id: process.env.CLIENT_ID,
+  auth_uri: process.env.AUTH_URI,
+  token_uri: process.env.TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_X509_CERT_URL,
+  client_x509_cert_url: process.env.CLIENT_X509_CERT_URL,
+};
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-app.use(cors()); // Enable CORS for all routes
+app.use(cors());
 app.use(bodyParser.json());
 
 // ENDPOINT TO GET TOKEN FROM AGORA
@@ -81,7 +92,7 @@ app.post('/sendPushNotification', async (req, res) => {
   }
 });
 
-// START THE SERVER
+//START THE SERVER
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
