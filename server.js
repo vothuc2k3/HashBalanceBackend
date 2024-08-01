@@ -17,7 +17,7 @@ const serviceAccount = {
   type: process.env.TYPE,
   project_id: process.env.PROJECT_ID,
   private_key_id: process.env.PRIVATE_KEY_ID,
-  private_key: process.env.PRIVATE_KEY.replace(/\\n/g, '\n'),
+  private_key: process.env.PRIVATE_KEY ? process.env.PRIVATE_KEY.replace(/\\n/g, '\n') : null,
   client_email: process.env.CLIENT_EMAIL,
   client_id: process.env.CLIENT_ID,
   auth_uri: process.env.AUTH_URI,
@@ -25,6 +25,10 @@ const serviceAccount = {
   auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_X509_CERT_URL,
   client_x509_cert_url: process.env.CLIENT_X509_CERT_URL,
 };
+
+if (!serviceAccount.private_key) {
+  throw new Error('The PRIVATE_KEY environment variable is not set or is invalid.');
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -92,7 +96,7 @@ app.post('/sendPushNotification', async (req, res) => {
   }
 });
 
-//START THE SERVER
+// START THE SERVER
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
