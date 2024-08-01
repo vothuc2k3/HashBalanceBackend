@@ -51,26 +51,26 @@ app.get('/access_token', (req, res) => {
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
-  const { tokens, message, title } = req.body;
+  const { tokens, message, title, payload } = req.body;
 
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return res.status(400).send('Tokens array is required and should not be empty');
   }
 
-  const payload = {
+  const notificationPayload = {
     notification: {
       title: title,
       body: message,
     },
+    data: payload, // Thêm payload vào data
   };
 
   try {
     const responses = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
-      ...payload,
+      ...notificationPayload,
     });
 
-    // Log and return response with detailed results
     const successfulTokens = responses.responses.filter(r => r.success).map((r, i) => tokens[i]);
     const failedTokens = responses.responses.filter(r => !r.success).map((r, i) => tokens[i]);
 
