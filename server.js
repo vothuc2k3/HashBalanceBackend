@@ -2,6 +2,7 @@ const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 const admin = require('firebase-admin');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 
 // INIT EXPRESS
 const app = express();
@@ -12,12 +13,13 @@ const APP_ID = '8a2ac699a8c84f3f894f59e55e766fa4';
 const APP_CERTIFICATE = '4c982f62b66a41e497009008aa7d10d7';
 
 // CONFIG FIREBASE ADMIN SDK
-const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+let serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+app.use(cors()); // Enable CORS for all routes
 app.use(bodyParser.json());
 
 // ENDPOINT TO GET TOKEN FROM AGORA
@@ -79,7 +81,7 @@ app.post('/sendPushNotification', async (req, res) => {
   }
 });
 
-//START THE SERVER
+// START THE SERVER
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
