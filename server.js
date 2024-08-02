@@ -31,7 +31,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // ENDPOINT TO GET TOKEN FROM AGORA
-app.get('/access_token', (req, res) => {
+app.get('/access_token', async (req, res) => {
   const channelName = req.query.channelName;
   if (!channelName) {
     return res.status(400).json({ 'error': 'Channel name is required' });
