@@ -40,7 +40,7 @@ app.get('/access_token', async (req, res) => {
   const uid = req.query.uid ? parseInt(req.query.uid) : 0;
   const role = RtcRole.PUBLISHER;
 
-  const expirationTimeInSeconds = 3600;
+  const expirationTimeInSeconds = 300;
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
