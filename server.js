@@ -8,7 +8,6 @@ const path = require('path');
 
 // INIT EXPRESS
 const app = express();
-const port = process.env.PORT || 3000; // Sử dụng cổng từ biến môi trường của Heroku
 
 // CONFIG AGORA
 const APP_ID = process.env.AGORA_APP_ID;
@@ -58,10 +57,6 @@ app.get('/access_token', async (req, res) => {
   return res.json({ 'token': token });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
-
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
@@ -105,9 +100,4 @@ app.post('/sendPushNotification', async (req, res) => {
     console.error('Error sending messages:', error);
     return res.status(500).send('Notification failed to send');
   }
-});
-
-// START THE SERVER
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
 });
