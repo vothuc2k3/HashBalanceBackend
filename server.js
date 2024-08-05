@@ -30,6 +30,10 @@ admin.initializeApp({
 app.use(cors());
 app.use(bodyParser.json());
 
+function filterToken(token) {
+  return token.replace(/["]/g, '');
+}
+
 // ENDPOINT TO GET TOKEN FROM AGORA
 app.get('/access_token', async (req, res) => {
   const channelName = req.query.channelName;
@@ -44,12 +48,18 @@ app.get('/access_token', async (req, res) => {
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-  const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+  let token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
 
-  // Log token to console for verification
-  console.log(`Generated token: ${token}`);
+  // Loại bỏ các ký tự không mong muốn
+  token = filterToken(token);
+
+  console.log('Generated token:', token); // In ra token để kiểm tra
 
   return res.json({ 'token': token });
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
 
 
