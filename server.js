@@ -46,6 +46,8 @@ app.get('/access_token', async (req, res) => {
 
   const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
 
+  console.log('Generated token:', token);
+
   return res.json({ 'token': token });
 });
 
