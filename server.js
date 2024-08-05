@@ -46,8 +46,12 @@ app.get('/access_token', async (req, res) => {
 
   const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
 
+  // Log token to console for verification
+  console.log(`Generated token: ${token}`);
+
   return res.json({ 'token': token });
 });
+
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
