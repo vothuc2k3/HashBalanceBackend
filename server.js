@@ -8,6 +8,7 @@ const path = require('path');
 
 // INIT EXPRESS
 const app = express();
+const port = process.env.PORT || 3000; // Sử dụng cổng từ biến môi trường của Heroku
 
 // CONFIG AGORA
 const APP_ID = process.env.AGORA_APP_ID;
@@ -29,10 +30,6 @@ admin.initializeApp({
 app.use(cors());
 app.use(bodyParser.json());
 
-function filterToken(token) {
-  return token.replace(/["]/g, '');
-}
-
 // ENDPOINT TO GET TOKEN FROM AGORA
 app.get('/access_token', async (req, res) => {
   const channelName = req.query.channelName;
@@ -47,16 +44,10 @@ app.get('/access_token', async (req, res) => {
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-  let token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
-
-  // Loại bỏ các ký tự không mong muốn
-  token = filterToken(token);
-
-  console.log('Generated token:', token); // In ra token để kiểm tra
+  const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
 
   return res.json({ 'token': token });
 });
-
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
@@ -100,4 +91,9 @@ app.post('/sendPushNotification', async (req, res) => {
     console.error('Error sending messages:', error);
     return res.status(500).send('Notification failed to send');
   }
+});
+
+// START THE SERVER
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
