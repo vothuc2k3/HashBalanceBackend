@@ -8,14 +8,14 @@ const path = require('path');
 
 // INIT EXPRESS
 const app = express();
-const port = process.env.PORT || 3000; // Sử dụng cổng từ biến môi trường của Heroku
+const port = process.env.PORT || 3000;
 
 // CONFIG AGORA
 const APP_ID = process.env.AGORA_APP_ID;
 const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
 // CONFIG FIREBASE ADMIN SDK
-const serviceAccountPath = path.resolve(__dirname, 'firebase_admin_sdk.json');
+const serviceAccountPath = path.resolve(__dirname, 'firebase.json');
 
 if (!fs.existsSync(serviceAccountPath)) {
   throw new Error(`The service account key file does not exist at path: ${serviceAccountPath}`);
