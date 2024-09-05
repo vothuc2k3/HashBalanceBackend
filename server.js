@@ -53,10 +53,10 @@ app.get('/access_token', async (req, res) => {
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
-  const { tokens, message, title, data } = req.body;
+  const { token, message, title, data } = req.body;
 
-  if (!Array.isArray(tokens) || tokens.length === 0) {
-    return res.status(400).send('Tokens array is required and should not be empty');
+  if (!token) {
+    return res.status(400).send('Token is required');
   }
 
   const payload = {
@@ -71,29 +71,24 @@ app.post('/sendPushNotification', async (req, res) => {
   };
 
   try {
-    const responses = await admin.messaging().sendEachForMulticast({
-      tokens: tokens,
+    const response = await admin.messaging().send({
+      token: token,
       ...payload,
     });
 
     // Log and return response with detailed results
-    const successfulTokens = responses.responses.filter(r => r.success).map((r, i) => tokens[i]);
-    const failedTokens = responses.responses.filter(r => !r.success).map((r, i) => tokens[i]);
-
-    console.log('Successfully sent messages:', successfulTokens);
-    if (failedTokens.length > 0) {
-      console.error('Failed to send messages:', failedTokens);
-    }
-
+    console.log('Successfully sent message:', response);
     return res.status(200).json({
-      success: successfulTokens.length,
-      failure: failedTokens.length,
+      success: 1,
+      failure: 0,
+      response,
     });
   } catch (error) {
-    console.error('Error sending messages:', error);
+    console.error('Error sending message:', error);
     return res.status(500).send('Notification failed to send');
   }
 });
+
 
 // START THE SERVER
 app.listen(port, () => {
