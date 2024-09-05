@@ -67,6 +67,7 @@ app.post('/sendPushNotification', async (req, res) => {
     data: {
       type: data.type,
       uid: data.uid,
+      communityId: data.communityId
     },
   };
 
