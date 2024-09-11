@@ -77,10 +77,22 @@ app.post('/sendPushNotification', async (req, res) => {
     });
 
     // Log and return response with detailed results
-    const successfulTokens = responses.responses.filter(r => r.success).map((r, i) => tokens[i]);
-    const failedTokens = responses.responses.filter(r => !r.success).map((r, i) => tokens[i]);
+    const successfulTokens = [];
+    const failedTokens = [];
+
+    responses.responses.forEach((response, index) => {
+      if (response.success) {
+        successfulTokens.push(tokens[index]);
+      } else {
+        failedTokens.push({
+          token: tokens[index],
+          error: response.error.message || 'Unknown error',
+        });
+      }
+    });
 
     console.log('Successfully sent messages:', successfulTokens);
+
     if (failedTokens.length > 0) {
       console.error('Failed to send messages:', failedTokens);
     }
@@ -88,6 +100,7 @@ app.post('/sendPushNotification', async (req, res) => {
     return res.status(200).json({
       success: successfulTokens.length,
       failure: failedTokens.length,
+      failedTokens,  // Include failed tokens and error details in the response
     });
   } catch (error) {
     console.error('Error sending messages:', error);
