@@ -53,13 +53,14 @@ app.get('/access_token', async (req, res) => {
 
 // ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
 app.post('/sendPushNotification', async (req, res) => {
-  const { tokens, message, title, data } = req.body;
+  const { tokens, message, title, data, type } = req.body;
 
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return res.status(400).send('Tokens array is required and should not be empty');
   }
 
-  const payload = {
+  //Init the default value for payload
+  let payload = {
     notification: {
       title: title,
       body: message,
@@ -69,6 +70,22 @@ app.post('/sendPushNotification', async (req, res) => {
       uid: data.uid,
     },
   };
+
+  // Actions based on type
+  if (type === 'incoming_call') {
+    //If type is incoming call, send FCM with this type
+    payload = {
+      notification: {
+        title: title,
+        body: message,
+      },
+      data: {
+        type: data.type,
+        callId: data.callId,
+        callerUid: data.callerUid,
+      },
+    };
+  }
 
   try {
     const responses = await admin.messaging().sendEachForMulticast({
