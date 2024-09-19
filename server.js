@@ -85,6 +85,18 @@ app.post('/sendPushNotification', async (req, res) => {
         callerUid: data.callerUid,
       },
     };
+  } else if (type === 'comment_mention') {
+    payload = {
+      notification: {
+        title: title,
+        body: message,
+      },
+      data: {
+        type: data.type,
+        commentId: data.commentId,
+        postId: data.postId,
+      },
+    };
   }
 
   try {
