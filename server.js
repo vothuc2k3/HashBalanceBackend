@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');
 
 // INIT EXPRESS
 const app = express();
@@ -27,8 +28,37 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+const db = admin.firestore();
 app.use(cors());
 app.use(bodyParser.json());
+
+async function deleteExpiredSuspensions() {
+  const now = admin.firestore.Timestamp.now();
+  try {
+    const suspendedUsersRef = db.collection('suspendedUsers');
+    const expiredSuspensions = await suspendedUsersRef.where('expiresAt', '<=', now).get();
+
+    if (!expiredSuspensions.empty) {
+      const batch = db.batch();
+
+      expiredSuspensions.forEach(doc => {
+        batch.delete(doc.ref);  // Xóa document
+      });
+
+      await batch.commit();
+      console.log(`Deleted ${expiredSuspensions.size} expired suspensions.`);
+    } else {
+      console.log('No expired suspensions found.');
+    }
+  } catch (error) {
+    console.error('Error deleting expired suspensions:', error);
+  }
+}
+
+cron.schedule('0 0 * * *', () => {
+  console.log('Running a task to check and delete expired suspensions');
+  deleteExpiredSuspensions();
+});
 
 // ENDPOINT TO GET TOKEN FROM AGORA
 app.get('/access_token', async (req, res) => {
