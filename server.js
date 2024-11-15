@@ -1,13 +1,9 @@
 const express = require('express');
 const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 const admin = require('firebase-admin');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 const cron = require('node-cron');
 
-// INIT EXPRESS
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -15,14 +11,7 @@ const port = process.env.PORT || 3000;
 const APP_ID = process.env.AGORA_APP_ID;
 const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
-// CONFIG FIREBASE ADMIN SDK
-const serviceAccountPath = path.resolve(__dirname, 'firebase.json');
-
-if (!fs.existsSync(serviceAccountPath)) {
-  throw new Error(`The service account key file does not exist at path: ${serviceAccountPath}`);
-}
-
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -30,7 +19,7 @@ admin.initializeApp({
 
 const db = admin.firestore();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
 async function deleteExpiredSuspensions() {
   const now = admin.firestore.Timestamp.now();
@@ -42,7 +31,7 @@ async function deleteExpiredSuspensions() {
       const batch = db.batch();
 
       expiredSuspensions.forEach(doc => {
-        batch.delete(doc.ref);  // Xóa document
+        batch.delete(doc.ref);  
       });
 
       await batch.commit();
@@ -89,7 +78,6 @@ app.post('/sendPushNotification', async (req, res) => {
     return res.status(400).send('Tokens array is required and should not be empty');
   }
 
-  //Init the default value for payload
   let payload = {
     notification: {
       title: title,
@@ -101,9 +89,7 @@ app.post('/sendPushNotification', async (req, res) => {
     },
   };
 
-  // Actions based on type
   if (type === 'incoming_call') {
-    //If type is incoming call, send FCM with this type
     payload = {
       notification: {
         title: title,
@@ -135,7 +121,6 @@ app.post('/sendPushNotification', async (req, res) => {
       ...payload,
     });
 
-    // Log and return response with detailed results
     const successfulTokens = [];
     const failedTokens = [];
 
@@ -159,7 +144,7 @@ app.post('/sendPushNotification', async (req, res) => {
     return res.status(200).json({
       success: successfulTokens.length,
       failure: failedTokens.length,
-      failedTokens,  // Include failed tokens and error details in the response
+      failedTokens,
     });
   } catch (error) {
     console.error('Error sending messages:', error);
@@ -167,7 +152,6 @@ app.post('/sendPushNotification', async (req, res) => {
   }
 });
 
-// START THE SERVER
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
