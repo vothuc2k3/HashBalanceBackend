@@ -11,16 +11,18 @@ const port = process.env.PORT || 3000;
 const APP_ID = process.env.AGORA_APP_ID;
 const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
+// INITIALIZE FIREBASE
 const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN);
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-
 const db = admin.firestore();
+
+// MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
+// FUNCTIONS
 async function calculateUpvotesAndUpdatePoints() {
   try {
     const postsSnapshot = await db.collection('posts').get();
@@ -30,26 +32,15 @@ async function calculateUpvotesAndUpdatePoints() {
     }
 
     const userActivityPoints = {};
-
     for (const postDoc of postsSnapshot.docs) {
       const postId = postDoc.id;
       const postData = postDoc.data();
       const userId = postData.uid;
 
-      const postVotesSnapshot = await db
-        .collection('posts')
-        .doc(postId)
-        .collection('post_votes')
-        .get();
-
+      const postVotesSnapshot = await db.collection('posts').doc(postId).collection('post_votes').get();
       if (!postVotesSnapshot.empty) {
         const upvotes = postVotesSnapshot.size;
-
-        if (userActivityPoints[userId]) {
-          userActivityPoints[userId] += upvotes;
-        } else {
-          userActivityPoints[userId] = upvotes;
-        }
+        userActivityPoints[userId] = (userActivityPoints[userId] || 0) + upvotes;
       }
     }
 
@@ -63,69 +54,44 @@ async function calculateUpvotesAndUpdatePoints() {
 
     await batch.commit();
     console.log('Successfully updated user activity points.');
-
   } catch (error) {
     console.error('Error calculating upvotes and updating points:', error);
   }
 }
 
-cron.schedule('* * * * *', () => {
-  console.log('Running a task to calculate upvotes and update user activity points.');
-  calculateUpvotesAndUpdatePoints();
-});
-
-
-async function deleteExpiredSuspensions() {
-  const now = admin.firestore.Timestamp.now();
-  try {
-    const suspendedUsersRef = db.collection('suspendedUsers');
-    const expiredSuspensions = await suspendedUsersRef.where('expiresAt', '<=', now).get();
-
-    if (!expiredSuspensions.empty) {
+function listenForExpiredSuspensions() {
+  const suspendedUsersRef = db.collection('suspendedUsers');
+  suspendedUsersRef.where('expiresAt', '<=', admin.firestore.Timestamp.now()).onSnapshot(snapshot => {
+    if (!snapshot.empty) {
       const batch = db.batch();
-
-      expiredSuspensions.forEach(doc => {
-        batch.delete(doc.ref);  
-      });
-
-      await batch.commit();
-      console.log(`Deleted ${expiredSuspensions.size} expired suspensions.`);
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+      batch.commit()
+        .then(() => console.log(`Deleted ${snapshot.size} expired suspensions.`))
+        .catch(error => console.error('Error deleting expired suspensions:', error));
     } else {
       console.log('No expired suspensions found.');
     }
-  } catch (error) {
-    console.error('Error deleting expired suspensions:', error);
-  }
+  }, error => console.error('Error setting up listener:', error));
 }
 
-cron.schedule('0 0 * * *', () => {
-  console.log('Running a task to check and delete expired suspensions');
-  deleteExpiredSuspensions();
-});
-
-// ENDPOINT TO GET TOKEN FROM AGORA
-app.get('/access_token', async (req, res) => {
+async function generateAgoraToken(req, res) {
   const channelName = req.query.channelName;
   if (!channelName) {
-    return res.status(400).json({ 'error': 'Channel name is required' });
+    return res.status(400).json({ error: 'Channel name is required' });
   }
 
   const uid = req.query.uid ? parseInt(req.query.uid) : 0;
   const role = RtcRole.PUBLISHER;
-
   const expirationTimeInSeconds = 300;
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
-
   const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
 
   console.log('Generated token:', token);
+  return res.json({ token });
+}
 
-  return res.json({ 'token': token });
-});
-
-// ENDPOINT TO SEND PUSH NOTIFICATION WITH FCM
-app.post('/sendPushNotification', async (req, res) => {
+async function sendPushNotification(req, res) {
   const { tokens, message, title, data, type } = req.body;
 
   if (!Array.isArray(tokens) || tokens.length === 0) {
@@ -133,79 +99,49 @@ app.post('/sendPushNotification', async (req, res) => {
   }
 
   let payload = {
-    notification: {
-      title: title,
-      body: message,
-    },
-    data: {
-      type: data.type,
-      uid: data.uid,
-    },
+    notification: { title, body: message },
+    data: { type: data.type, uid: data.uid },
   };
 
   if (type === 'incoming_call') {
-    payload = {
-      notification: {
-        title: title,
-        body: message,
-      },
-      data: {
-        type: data.type,
-        callId: data.callId,
-        callerUid: data.callerUid,
-      },
-    };
+    payload.data = { type: data.type, callId: data.callId, callerUid: data.callerUid };
   } else if (type === 'comment_mention') {
-    payload = {
-      notification: {
-        title: title,
-        body: message,
-      },
-      data: {
-        type: data.type,
-        commentId: data.commentId,
-        postId: data.postId,
-      },
-    };
+    payload.data = { type: data.type, commentId: data.commentId, postId: data.postId };
   }
 
   try {
-    const responses = await admin.messaging().sendEachForMulticast({
-      tokens: tokens,
-      ...payload,
-    });
-
+    const responses = await admin.messaging().sendEachForMulticast({ tokens, ...payload });
     const successfulTokens = [];
     const failedTokens = [];
 
     responses.responses.forEach((response, index) => {
-      if (response.success) {
-        successfulTokens.push(tokens[index]);
-      } else {
-        failedTokens.push({
-          token: tokens[index],
-          error: response.error.message || 'Unknown error',
-        });
-      }
+      response.success ? successfulTokens.push(tokens[index]) : failedTokens.push({ token: tokens[index], error: response.error.message || 'Unknown error' });
     });
 
     console.log('Successfully sent messages:', successfulTokens);
+    if (failedTokens.length > 0) console.error('Failed to send messages:', failedTokens);
 
-    if (failedTokens.length > 0) {
-      console.error('Failed to send messages:', failedTokens);
-    }
-
-    return res.status(200).json({
-      success: successfulTokens.length,
-      failure: failedTokens.length,
-      failedTokens,
-    });
+    return res.status(200).json({ success: successfulTokens.length, failure: failedTokens.length, failedTokens });
   } catch (error) {
     console.error('Error sending messages:', error);
     return res.status(500).send('Notification failed to send');
   }
+}
+
+// ROUTES
+app.get('/access_token', generateAgoraToken);
+app.post('/sendPushNotification', sendPushNotification);
+
+// CRON JOBS
+cron.schedule('0 */3 * * *', () => {
+  console.log('Running a task to calculate upvotes and update user activity points.');
+  calculateUpvotesAndUpdatePoints();
 });
 
+// START LISTENER
+listenForExpiredSuspensions();
+
+// START SERVER
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
