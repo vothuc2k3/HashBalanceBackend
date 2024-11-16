@@ -21,6 +21,60 @@ const db = admin.firestore();
 app.use(cors());
 app.use(express.json());
 
+async function calculateUpvotesAndUpdatePoints() {
+  try {
+    const postsSnapshot = await db.collection('posts').get();
+    if (postsSnapshot.empty) {
+      console.log('No posts found.');
+      return;
+    }
+
+    const userActivityPoints = {};
+
+    for (const postDoc of postsSnapshot.docs) {
+      const postId = postDoc.id;
+      const postData = postDoc.data();
+      const userId = postData.uid;
+
+      const postVotesSnapshot = await db
+        .collection('posts')
+        .doc(postId)
+        .collection('post_votes')
+        .get();
+
+      if (!postVotesSnapshot.empty) {
+        const upvotes = postVotesSnapshot.size;
+
+        if (userActivityPoints[userId]) {
+          userActivityPoints[userId] += upvotes;
+        } else {
+          userActivityPoints[userId] = upvotes;
+        }
+      }
+    }
+
+    const batch = db.batch();
+    for (const [userId, points] of Object.entries(userActivityPoints)) {
+      const userRef = db.collection('users').doc(userId);
+      batch.update(userRef, {
+        activityPoint: admin.firestore.FieldValue.increment(points),
+      });
+    }
+
+    await batch.commit();
+    console.log('Successfully updated user activity points.');
+
+  } catch (error) {
+    console.error('Error calculating upvotes and updating points:', error);
+  }
+}
+
+cron.schedule('* * * * *', () => {
+  console.log('Running a task to calculate upvotes and update user activity points.');
+  calculateUpvotesAndUpdatePoints();
+});
+
+
 async function deleteExpiredSuspensions() {
   const now = admin.firestore.Timestamp.now();
   try {
