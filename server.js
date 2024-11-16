@@ -48,7 +48,7 @@ async function calculateUpvotesAndUpdatePoints() {
     for (const [userId, points] of Object.entries(userActivityPoints)) {
       const userRef = db.collection('users').doc(userId);
       batch.update(userRef, {
-        activityPoint: admin.firestore.FieldValue.increment(points),
+        activityPoint: points,
       });
     }
 
@@ -58,6 +58,7 @@ async function calculateUpvotesAndUpdatePoints() {
     console.error('Error calculating upvotes and updating points:', error);
   }
 }
+
 
 function listenForExpiredSuspensions() {
   const suspendedUsersRef = db.collection('suspendedUsers');
