@@ -60,9 +60,11 @@ async function calculateUpvotesAndUpdatePoints() {
 }
 
 
-function listenForExpiredSuspensions() {
+function checkAndDeleteExpiredSuspensions() {
+  const now = admin.firestore.Timestamp.now();
   const suspendedUsersRef = db.collection('suspendedUsers');
-  suspendedUsersRef.where('expiresAt', '<=', admin.firestore.Timestamp.now()).onSnapshot(snapshot => {
+
+  suspendedUsersRef.where('expiresAt', '<=', now).get().then(snapshot => {
     if (!snapshot.empty) {
       const batch = db.batch();
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -72,8 +74,9 @@ function listenForExpiredSuspensions() {
     } else {
       console.log('No expired suspensions found.');
     }
-  }, error => console.error('Error setting up listener:', error));
+  }).catch(error => console.error('Error querying expired suspensions:', error));
 }
+
 
 async function generateAgoraToken(req, res) {
   const channelName = req.query.channelName;
@@ -137,6 +140,11 @@ app.post('/sendPushNotification', sendPushNotification);
 cron.schedule('0 */3 * * *', () => {
   console.log('Running a task to calculate upvotes and update user activity points.');
   calculateUpvotesAndUpdatePoints();
+});
+
+cron.schedule('* * * * *', () => {
+  console.log('Checking and deleting expired suspensions.');
+  checkAndDeleteExpiredSuspensions();
 });
 
 // START LISTENER
