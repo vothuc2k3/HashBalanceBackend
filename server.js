@@ -62,7 +62,7 @@ async function calculateUpvotesAndUpdatePoints() {
 
 function checkAndDeleteExpiredSuspensions() {
   const now = admin.firestore.Timestamp.now();
-  const suspendedUsersRef = db.collection('suspendedUsers');
+  const suspendedUsersRef = db.collection('suspended_users');
 
   suspendedUsersRef.where('expiresAt', '<=', now).get().then(snapshot => {
     if (!snapshot.empty) {
