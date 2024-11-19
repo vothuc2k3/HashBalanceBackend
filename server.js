@@ -69,8 +69,8 @@ function checkAndDeleteExpiredSuspensions() {
       const batch = db.batch();
 
       snapshot.docs.forEach(doc => {
-        const uid = doc.data().uid;
-        const communityId = doc.data().communityId;
+        const uid = String(doc.data().uid).trim();
+        const communityId = String(doc.data().communityId).trim();
 
         const membershipId = `${uid}${communityId}`;
 
@@ -87,6 +87,7 @@ function checkAndDeleteExpiredSuspensions() {
     }
   }).catch(error => console.error('Error querying expired suspensions:', error));
 }
+
 
 
 async function generateAgoraToken(req, res) {
