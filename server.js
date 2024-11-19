@@ -70,7 +70,11 @@ function checkAndDeleteExpiredSuspensions() {
 
       snapshot.docs.forEach(doc => {
         const uid = doc.data().uid; 
-        const communityMembershipRef = db.collection('community_memberships').doc(uid);
+        const communityId = doc.data().communityId;
+
+        const membershipId = [uid, communityId].join();
+        
+        const communityMembershipRef = db.collection('community_memberships').doc(membershipId);
         batch.update(communityMembershipRef, { status: 'active' });
         batch.delete(doc.ref);
       });
