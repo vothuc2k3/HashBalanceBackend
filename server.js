@@ -69,15 +69,16 @@ function checkAndDeleteExpiredSuspensions() {
       const batch = db.batch();
 
       snapshot.docs.forEach(doc => {
-        const uid = doc.data().uid; 
+        const uid = doc.data().uid;
         const communityId = doc.data().communityId;
 
-        const membershipId = [uid, communityId].join();
-        
+        const membershipId = `${uid}${communityId}`;
+
         const communityMembershipRef = db.collection('community_memberships').doc(membershipId);
         batch.update(communityMembershipRef, { status: 'active' });
         batch.delete(doc.ref);
       });
+
       batch.commit()
         .then(() => console.log(`Deleted ${snapshot.size} expired suspensions and updated statuses.`))
         .catch(error => console.error('Error processing expired suspensions:', error));
@@ -86,6 +87,7 @@ function checkAndDeleteExpiredSuspensions() {
     }
   }).catch(error => console.error('Error querying expired suspensions:', error));
 }
+
 
 async function generateAgoraToken(req, res) {
   const channelName = req.query.channelName;
