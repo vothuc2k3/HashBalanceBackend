@@ -231,7 +231,7 @@ async function detectToxicity(textList) {
 
 
 // ROUTES
-app.get('/access_token', generateAgoraToken);
+app.get('/agoraAccessToken', generateAgoraToken);
 app.post('/sendPushNotification', sendPushNotification);
 app.post('/detectAdultContent', async (req, res) => {
   const { base64Images } = req.body;
