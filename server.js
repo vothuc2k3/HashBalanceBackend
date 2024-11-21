@@ -175,18 +175,83 @@ async function detectAdultContent(base64Images) {
   }
 }
 
+async function detectToxicity(textList) {
+  const API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
+
+  try {
+    const requests = textList.map(text => {
+      return axios.post(API_URL, {
+        comment: { text },
+        languages: ['en'],
+        requestedAttributes: {
+          TOXICITY: {},
+          SEVERE_TOXICITY: {},
+          INSULT: {},
+          PROFANITY: {},
+          THREAT: {},
+        },
+      });
+    });
+
+    const responses = await Promise.all(requests);
+
+    const results = responses.map((response, index) => {
+      const attributes = response.data.attributeScores;
+      const toxicity = attributes.TOXICITY.summaryScore.value;
+      const severeToxicity = attributes.SEVERE_TOXICITY.summaryScore.value;
+      const insult = attributes.INSULT.summaryScore.value;
+      const profanity = attributes.PROFANITY.summaryScore.value;
+      const threat = attributes.THREAT.summaryScore.value;
+
+      return {
+        textIndex: index,
+        text: textList[index],
+        scores: {
+          toxicity,
+          severeToxicity,
+          insult,
+          profanity,
+          threat,
+        },
+        isToxic:
+          toxicity > 0.7 ||
+          severeToxicity > 0.5 ||
+          insult > 0.6 ||
+          profanity > 0.6 ||
+          threat > 0.5,
+      };
+    });
+
+    return results;
+  } catch (error) {
+    console.error('Error detecting toxicity:', error.response?.data || error.message);
+    throw new Error('Failed to analyze text toxicity.');
+  }
+}
+
+
 // ROUTES
 app.get('/access_token', generateAgoraToken);
 app.post('/sendPushNotification', sendPushNotification);
 app.post('/detectAdultContent', async (req, res) => {
   const { base64Images } = req.body;
-
   if (!Array.isArray(base64Images) || base64Images.length === 0) {
     return res.status(400).send('Base64Images array is required and should not be empty');
   }
-
   try {
     const results = await detectAdultContent(base64Images);
+    return res.status(200).json({ results });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/detectToxicity', async (req, res) => {
+  const { texts } = req.body;
+  if (!Array.isArray(texts) || texts.length === 0) {
+    return res.status(400).send('Texts array is required and should not be empty');
+  }
+  try {
+    const results = await detectToxicity(texts);
     return res.status(200).json({ results });
   } catch (error) {
     return res.status(500).json({ error: error.message });
