@@ -89,21 +89,41 @@ function checkAndDeleteExpiredSuspensions() {
 }
 
 async function generateAgoraToken(req, res) {
-  const channelName = req.query.channelName;
-  if (!channelName) {
-    return res.status(400).json({ error: 'Channel name is required' });
+  try {
+    const channelName = req.query.channelName;
+    if (!channelName) {
+      return res.status(400).json({ error: 'Channel name is required' });
+    }
+
+    const uid = req.query.uid ? parseInt(req.query.uid) : 0;
+    const role = RtcRole.PUBLISHER;
+    const expirationTimeInSeconds = 300;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      APP_ID,
+      APP_CERTIFICATE,
+      channelName,
+      uid,
+      role,
+      privilegeExpiredTs
+    );
+
+    console.log('Generated token:', token);
+    return res.json({ token });
+
+  } catch (error) {
+    console.error('Error generating Agora token:', error);
+
+    if (error instanceof TypeError) {
+      return res.status(500).json({ error: 'Invalid input or configuration error.' });
+    } else {
+      return res.status(500).json({ error: 'An unexpected error occurred while generating the token.' });
+    }
   }
-
-  const uid = req.query.uid ? parseInt(req.query.uid) : 0;
-  const role = RtcRole.PUBLISHER;
-  const expirationTimeInSeconds = 300;
-  const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
-  const token = RtcTokenBuilder.buildTokenWithUid(APP_ID, APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
-
-  console.log('Generated token:', token);
-  return res.json({ token });
 }
+
 
 async function sendPushNotification(req, res) {
   const { tokens, message, title, data, type } = req.body;
