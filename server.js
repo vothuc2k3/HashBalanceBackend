@@ -162,45 +162,42 @@ async function sendPushNotification(req, res) {
   }
 }
 
-async function analyzeImageSafety(base64Images) {
+async function analyzeImageSafety(base64Image) {
   const API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
 
   try {
-    const requests = base64Images.map((base64Image) => ({
-      image: { content: base64Image },
-      features: [{ type: "SAFE_SEARCH_DETECTION" }],
-    }));
+    const request = {
+      requests: [
+        {
+          image: { content: base64Image },
+          features: [{ type: "SAFE_SEARCH_DETECTION" }],
+        },
+      ],
+    };
 
-    const response = await axios.post(API_URL, { requests });
+    const response = await axios.post(API_URL, request);
 
     if (response.status !== 200) {
-      throw new Error(`Failed to analyze images. Status code: ${response.status}`);
+      throw new Error(`Failed to analyze image. Status code: ${response.status}`);
     }
 
-    const results = response.data.responses.map((result) => {
-      const safeSearch = result.safeSearchAnnotation || {};
-      const adult = safeSearch.adult || "UNKNOWN";
-      const violence = safeSearch.violence || "UNKNOWN";
-      const racy = safeSearch.racy || "UNKNOWN";
-      const medical = safeSearch.medical || "UNKNOWN";
-      const spoof = safeSearch.spoof || "UNKNOWN";
+    const safeSearch = response.data.responses[0]?.safeSearchAnnotation || {};
+    const isSafe =
+      (safeSearch.adult === "VERY_UNLIKELY" || safeSearch.adult === "UNLIKELY") &&
+      (safeSearch.violence === "VERY_UNLIKELY" ||
+        safeSearch.violence === "UNLIKELY") &&
+      (safeSearch.racy === "VERY_UNLIKELY" || safeSearch.racy === "UNLIKELY") &&
+      (safeSearch.medical === "VERY_UNLIKELY" ||
+        safeSearch.medical === "UNLIKELY") &&
+      (safeSearch.spoof === "VERY_UNLIKELY" || safeSearch.spoof === "UNLIKELY");
 
-      const isSafe =
-        (adult === "VERY_UNLIKELY" || adult === "UNLIKELY") &&
-        (violence === "VERY_UNLIKELY" || violence === "UNLIKELY") &&
-        (racy === "VERY_UNLIKELY" || racy === "UNLIKELY") &&
-        (medical === "VERY_UNLIKELY" || medical === "UNLIKELY") &&
-        (spoof === "VERY_UNLIKELY" || spoof === "UNLIKELY");
-
-      return isSafe;
-    });
-
-    return results;
+    return isSafe;
   } catch (error) {
-    console.error("Error during image safety analysis:", error.message);
-    throw new Error("Error during image safety analysis.");
+    console.error("Error during single image safety analysis:", error.message);
+    throw error;
   }
 }
+
 
 async function detectToxicity(text) {
   const API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
@@ -254,17 +251,20 @@ app.get('/agoraAccessToken', generateAgoraToken);
 
 app.post('/sendPushNotification', sendPushNotification);
 
-app.post("/analyzeImages", async (req, res) => {
-  const { base64Images } = req.body;
+app.post("/analyzeImage", async (req, res) => {
+  const { base64Image } = req.body;
 
-  if (!Array.isArray(base64Images) || base64Images.length === 0) {
-    return res.status(400).json({ error: "Base64Images array is required and should not be empty." });
+  if (!base64Image || typeof base64Image !== "string") {
+    return res
+      .status(400)
+      .json({ error: "A valid Base64Image string is required." });
   }
 
   try {
-    const results = await analyzeImageSafety(base64Images);
-    return res.status(200).json({ isSafeList: results });
+    const isSafe = await analyzeImageSafety(base64Image);
+    return res.status(200).json({ isSafe });
   } catch (error) {
+    console.error("Error during image safety analysis:", error.message);
     return res.status(500).json({ error: error.message });
   }
 });
