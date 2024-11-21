@@ -162,36 +162,43 @@ async function sendPushNotification(req, res) {
   }
 }
 
-async function detectAdultContent(base64Images) {
+async function analyzeImageSafety(base64Images) {
   const API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
 
-  const requests = base64Images.map((base64Image) => ({
-    image: { content: base64Image },
-    features: [{ type: 'SAFE_SEARCH_DETECTION' }],
-  }));
-
   try {
+    const requests = base64Images.map((base64Image) => ({
+      image: { content: base64Image },
+      features: [{ type: "SAFE_SEARCH_DETECTION" }],
+    }));
+
     const response = await axios.post(API_URL, { requests });
 
-    const results = response.data.responses.map((result, index) => {
-      if (result.safeSearchAnnotation) {
-        const { adult, violence, medical, racy } = result.safeSearchAnnotation;
-        return {
-          imageIndex: index,
-          adultLikelihood: adult,
-          violenceLikelihood: violence,
-          medicalLikelihood: medical,
-          racyLikelihood: racy,
-        };
-      } else {
-        return { imageIndex: index, error: 'No safeSearchAnnotation detected' };
-      }
+    if (response.status !== 200) {
+      throw new Error(`Failed to analyze images. Status code: ${response.status}`);
+    }
+
+    const results = response.data.responses.map((result) => {
+      const safeSearch = result.safeSearchAnnotation || {};
+      const adult = safeSearch.adult || "UNKNOWN";
+      const violence = safeSearch.violence || "UNKNOWN";
+      const racy = safeSearch.racy || "UNKNOWN";
+      const medical = safeSearch.medical || "UNKNOWN";
+      const spoof = safeSearch.spoof || "UNKNOWN";
+
+      const isSafe =
+        (adult === "VERY_UNLIKELY" || adult === "UNLIKELY") &&
+        (violence === "VERY_UNLIKELY" || violence === "UNLIKELY") &&
+        (racy === "VERY_UNLIKELY" || racy === "UNLIKELY") &&
+        (medical === "VERY_UNLIKELY" || medical === "UNLIKELY") &&
+        (spoof === "VERY_UNLIKELY" || spoof === "UNLIKELY");
+
+      return isSafe;
     });
 
     return results;
   } catch (error) {
-    console.error('Error detecting content:', error);
-    throw new Error('Failed to analyze images.');
+    console.error("Error during image safety analysis:", error.message);
+    throw new Error("Error during image safety analysis.");
   }
 }
 
@@ -244,19 +251,24 @@ async function detectToxicity(text) {
 
 // ROUTES
 app.get('/agoraAccessToken', generateAgoraToken);
+
 app.post('/sendPushNotification', sendPushNotification);
-app.post('/detectAdultContent', async (req, res) => {
+
+app.post("/analyzeImages", async (req, res) => {
   const { base64Images } = req.body;
+
   if (!Array.isArray(base64Images) || base64Images.length === 0) {
-    return res.status(400).send('Base64Images array is required and should not be empty');
+    return res.status(400).json({ error: "Base64Images array is required and should not be empty." });
   }
+
   try {
-    const results = await detectAdultContent(base64Images);
-    return res.status(200).json({ results });
+    const results = await analyzeImageSafety(base64Images);
+    return res.status(200).json({ isSafeList: results });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 });
+
 app.post('/detectToxicity', async (req, res) => {
   const { text } = req.body;
   if (!text || typeof text !== 'string') {
