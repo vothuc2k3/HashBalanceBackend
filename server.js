@@ -3,6 +3,7 @@ const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const cron = require('node-cron');
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -59,7 +60,6 @@ async function calculateUpvotesAndUpdatePoints() {
   }
 }
 
-
 function checkAndDeleteExpiredSuspensions() {
   const now = admin.firestore.Timestamp.now();
   const suspendedUsersRef = db.collection('suspended_users');
@@ -87,8 +87,6 @@ function checkAndDeleteExpiredSuspensions() {
     }
   }).catch(error => console.error('Error querying expired suspensions:', error));
 }
-
-
 
 async function generateAgoraToken(req, res) {
   const channelName = req.query.channelName;
@@ -144,9 +142,56 @@ async function sendPushNotification(req, res) {
   }
 }
 
+async function detectAdultContent(base64Images) {
+  const API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
+
+  const requests = base64Images.map((base64Image) => ({
+    image: { content: base64Image },
+    features: [{ type: 'SAFE_SEARCH_DETECTION' }],
+  }));
+
+  try {
+    const response = await axios.post(API_URL, { requests });
+
+    const results = response.data.responses.map((result, index) => {
+      if (result.safeSearchAnnotation) {
+        const { adult, violence, medical, racy } = result.safeSearchAnnotation;
+        return {
+          imageIndex: index,
+          adultLikelihood: adult,
+          violenceLikelihood: violence,
+          medicalLikelihood: medical,
+          racyLikelihood: racy,
+        };
+      } else {
+        return { imageIndex: index, error: 'No safeSearchAnnotation detected' };
+      }
+    });
+
+    return results;
+  } catch (error) {
+    console.error('Error detecting content:', error);
+    throw new Error('Failed to analyze images.');
+  }
+}
+
 // ROUTES
 app.get('/access_token', generateAgoraToken);
 app.post('/sendPushNotification', sendPushNotification);
+app.post('/detectAdultContent', async (req, res) => {
+  const { base64Images } = req.body;
+
+  if (!Array.isArray(base64Images) || base64Images.length === 0) {
+    return res.status(400).send('Base64Images array is required and should not be empty');
+  }
+
+  try {
+    const results = await detectAdultContent(base64Images);
+    return res.status(200).json({ results });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 // CRON JOBS
 cron.schedule('0 */3 * * *', () => {
