@@ -260,22 +260,32 @@ async function disableUserAccount(uid) {
 }
 
 // ROUTES
-
 app.post('/changeUserRoleToAdmin', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send({ error: 'Unauthorized' });
+  }
+
+  const idToken = authHeader.split(' ')[1];
   try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    if (!decodedToken || !decodedToken.uid) {
+      return res.status(401).send({ error: 'Invalid token' });
+    }
+
     const { uid } = req.body;
     if (!uid) {
       return res.status(400).send({ error: 'UID is required' });
     }
+
     await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
     console.log(`User with UID ${uid} has been updated to admin.`);
     res.status(200).send({ message: 'Role updated successfully' });
   } catch (error) {
-    console.error('Error updating user role:', error);
+    console.error('Error verifying token or updating role:', error);
     res.status(500).send({ error: 'Failed to update role' });
   }
 });
-
 
 app.post('/disableUserAccount', disableUserAccount);
 
