@@ -259,6 +259,32 @@ async function disableUserAccount(uid) {
   }
 }
 
+async function checkAdminRole(req, res) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send({ error: 'Unauthorized' });
+  }
+
+  const idToken = authHeader.split(' ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+    const { uid } = req.body;
+    if (!uid) {
+      return res.status(400).send({ error: 'UID is required' });
+    }
+
+    const user = await admin.auth().getUser(uid);
+
+    const isAdmin = user.customClaims?.role === 'admin';
+
+    res.status(200).send({ isAdmin });
+  } catch (error) {
+    console.error('Error verifying token or checking role:', error);
+    res.status(500).send({ error: 'Failed to check admin role' });
+  }
+}
+
 // ROUTES
 app.post('/changeUserRoleToAdmin', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -286,6 +312,8 @@ app.post('/changeUserRoleToAdmin', async (req, res) => {
     res.status(500).send({ error: 'Failed to update role' });
   }
 });
+
+app.post('/isAdmin', checkAdminRole);
 
 app.post('/disableUserAccount', disableUserAccount);
 
