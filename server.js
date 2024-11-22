@@ -269,10 +269,8 @@ async function checkAdminRole(req, res) {
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
 
-    const { uid } = req.body;
-    if (!uid) {
-      return res.status(400).send({ error: 'UID is required' });
-    }
+    const uid = decodedToken.uid;
+    console.log(`Token belongs to UID: ${uid}`);
 
     const user = await admin.auth().getUser(uid);
 
@@ -284,6 +282,7 @@ async function checkAdminRole(req, res) {
     res.status(500).send({ error: 'Failed to check admin role' });
   }
 }
+
 
 // ROUTES
 app.post('/changeUserRoleToAdmin', async (req, res) => {
