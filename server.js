@@ -260,11 +260,11 @@ async function disableUserAccount(uid) {
 }
 
 async function checkAdminRole(req, res) {
+  console.log('Checking admin role...');
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send({ error: 'Unauthorized' });
   }
-
   const idToken = authHeader.split(' ')[1];
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
