@@ -24,6 +24,12 @@ app.use(cors());
 app.use(express.json());
 
 // FUNCTIONS
+
+async function changeUserRoleToAdmin(uid) {
+  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
+  console.log(`User with UID ${uid} has been updated to admin.`);
+}
+
 async function calculateUpvotesAndUpdatePoints() {
   try {
     const postsSnapshot = await db.collection('posts').get();
@@ -244,9 +250,35 @@ async function detectToxicity(text) {
   }
 }
 
-
+async function disableUserAccount(uid) {
+  try {
+    await admin.auth().updateUser(uid, { disabled: true });
+    console.log(`User with UID ${uid} has been disabled.`);
+  } catch (error) {
+    console.error("Error disabling user:", error);
+  }
+}
 
 // ROUTES
+
+app.post('/changeUserRoleToAdmin', async (req, res) => {
+  try {
+    const { uid } = req.body;
+    if (!uid) {
+      return res.status(400).send({ error: 'UID is required' });
+    }
+    await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
+    console.log(`User with UID ${uid} has been updated to admin.`);
+    res.status(200).send({ message: 'Role updated successfully' });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).send({ error: 'Failed to update role' });
+  }
+});
+
+
+app.post('/disableUserAccount', disableUserAccount);
+
 app.get('/agoraAccessToken', generateAgoraToken);
 
 app.post('/sendPushNotification', sendPushNotification);
