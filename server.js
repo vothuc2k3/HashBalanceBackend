@@ -25,11 +25,6 @@ app.use(express.json());
 
 // FUNCTIONS
 
-async function changeUserRoleToAdmin(uid) {
-  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
-  console.log(`User with UID ${uid} has been updated to admin.`);
-}
-
 async function calculateUpvotesAndUpdatePoints() {
   try {
     const postsSnapshot = await db.collection('posts').get();
@@ -261,56 +256,26 @@ async function disableUserAccount(uid) {
 
 async function checkAdminRole(req, res) {
   console.log('Checking admin role...');
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).send({ error: 'Unauthorized' });
+  const { uid } = req.body;
+
+  if (!uid) {
+    return res.status(400).send({ error: 'UID is required' });
   }
-  const idToken = authHeader.split(' ')[1];
+
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-    const uid = decodedToken.uid;
-    console.log(`Token belongs to UID: ${uid}`);
-
     const user = await admin.auth().getUser(uid);
-
+    console.log(`Fetched user for UID: ${uid}`);
+    
     const isAdmin = user.customClaims?.role === 'admin';
 
     res.status(200).send({ isAdmin });
   } catch (error) {
-    console.error('Error verifying token or checking role:', error);
+    console.error('Error checking admin role:', error);
     res.status(500).send({ error: 'Failed to check admin role' });
   }
 }
 
-
 // ROUTES
-app.post('/changeUserRoleToAdmin', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).send({ error: 'Unauthorized' });
-  }
-
-  const idToken = authHeader.split(' ')[1];
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    if (!decodedToken || !decodedToken.uid) {
-      return res.status(401).send({ error: 'Invalid token' });
-    }
-
-    const { uid } = req.body;
-    if (!uid) {
-      return res.status(400).send({ error: 'UID is required' });
-    }
-
-    await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
-    console.log(`User with UID ${uid} has been updated to admin.`);
-    res.status(200).send({ message: 'Role updated successfully' });
-  } catch (error) {
-    console.error('Error verifying token or updating role:', error);
-    res.status(500).send({ error: 'Failed to update role' });
-  }
-});
 
 app.post('/isAdmin', checkAdminRole);
 
