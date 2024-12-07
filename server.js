@@ -144,6 +144,8 @@ async function sendPushNotification(req, res) {
     payload.data = { type: data.type, callId: data.callId, callerUid: data.callerUid };
   } else if (type === 'comment_mention') {
     payload.data = { type: data.type, commentId: data.commentId, postId: data.postId };
+  } else if (type === 'membership_invitation') {
+    payload.data = { type: data.type, communityId: data.communityId };
   }
 
   try {
@@ -267,7 +269,7 @@ async function checkAdminRole(req, res) {
   try {
     const user = await admin.auth().getUser(uid);
     console.log(`Fetched user for UID: ${uid}`);
-    
+
     const isAdmin = user.customClaims?.role === 'admin';
 
     res.status(200).send({ isAdmin });
