@@ -298,6 +298,60 @@ async function promoteToAdmin(req, res) {
   res.status(200).send({ message: 'User promoted to admin' });
 }
 
+async function detectAndAwardBadges() {
+  try {
+    console.log("Detecting users eligible for badges...");
+
+    // Fetch all badges
+    const badgesSnapshot = await db.collection("badges").get();
+    if (badgesSnapshot.empty) {
+      console.log("No badges found.");
+      return;
+    }
+
+    const badges = badgesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Fetch all users
+    const usersSnapshot = await db.collection("users").get();
+    if (usersSnapshot.empty) {
+      console.log("No users found.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    usersSnapshot.docs.forEach(userDoc => {
+      const userData = userDoc.data();
+      const userId = userDoc.id;
+      const userActivityPoint = userData.activityPoint || 0;
+      const currentBadgeIds = new Set(userData.badgeIds || []);
+
+      // Check eligible badges
+      badges.forEach(badge => {
+        if (
+          userActivityPoint >= badge.threshold && // Check if threshold is met
+          !currentBadgeIds.has(badge.id) // Ensure badge is not already awarded
+        ) {
+          currentBadgeIds.add(badge.id);
+        }
+      });
+
+      // Update user document with new badges
+      batch.update(db.collection("users").doc(userId), {
+        badgeIds: Array.from(currentBadgeIds), // Convert Set to Array
+      });
+    });
+
+    await batch.commit();
+    console.log("Successfully detected and awarded badges.");
+  } catch (error) {
+    console.error("Error detecting and awarding badges:", error);
+  }
+}
+
 // ROUTES
 app.post('/promoteToAdmin', promoteToAdmin);
 
@@ -349,6 +403,11 @@ cron.schedule('0 */3 * * *', () => {
 cron.schedule('* * * * *', () => {
   console.log('Checking and deleting expired suspensions.');
   checkAndDeleteExpiredSuspensions();
+});
+
+cron.schedule('*/5 * * * *', () => {
+  console.log('Detecting and awarding badges.');
+  detectAndAwardBadges();
 });
 
 // START SERVER
