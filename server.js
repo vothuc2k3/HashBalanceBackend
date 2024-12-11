@@ -26,7 +26,6 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 
 // FUNCTIONS
-
 async function calculateUpvotesAndUpdatePoints() {
   try {
     const postsSnapshot = await db.collection('posts').get();
@@ -279,7 +278,14 @@ async function checkAdminRole(req, res) {
   }
 }
 
+async function promoteToAdmin(req, res) {
+  const { uid } = req.body;
+  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
+  res.status(200).send({ message: 'User promoted to admin' });
+}
+
 // ROUTES
+app.post('/promoteToAdmin', promoteToAdmin);
 
 app.post('/isAdmin', checkAdminRole);
 
