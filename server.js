@@ -423,7 +423,6 @@ async function promoteToAdmin(req, res) {
   res.status(200).send({ message: 'User promoted to admin' });
 }
 
-
 // ROUTES
 app.post('/promoteToAdmin', promoteToAdmin);
 
@@ -467,16 +466,19 @@ app.post('/detectToxicity', async (req, res) => {
 });
 
 // CRON JOBS
-cron.schedule('0 */3 * * *', () => {
+// This cron job runs every 5 minutes
+cron.schedule('*/5 * * * *', () => {
   console.log('Running a task to calculate upvotes and update user activity points.');
   calculateUpvotesAndUpdatePoints();
 });
 
+// This cron job runs every minute
 cron.schedule('* * * * *', () => {
   console.log('Checking and deleting expired suspensions.');
   checkAndDeleteExpiredSuspensions();
 });
 
+// This cron job runs every 5 minutes
 cron.schedule('*/5 * * * *', () => {
   console.log('Detecting and awarding badges.');
   detectAndAwardBadges();
