@@ -248,14 +248,28 @@ async function detectToxicity(text) {
   }
 }
 
-async function disableUserAccount(uid) {
+async function disableUserAccount(req, res) {
+  const { uid } = req.body;
+
+  if (!uid || typeof uid !== "string" || uid.length > 128) {
+    return res.status(400).json({
+      message: "Invalid UID. UID must be a non-empty string with at most 128 characters.",
+    });
+  }
+
   try {
     await admin.auth().updateUser(uid, { disabled: true });
     console.log(`User with UID ${uid} has been disabled.`);
+    res.status(200).json({ message: "User account disabled successfully" });
   } catch (error) {
     console.error("Error disabling user:", error);
+    res.status(500).json({
+      message: "Failed to disable user account",
+      error: error.message,
+    });
   }
 }
+
 
 async function checkAdminRole(req, res) {
   console.log('Checking admin role...');
