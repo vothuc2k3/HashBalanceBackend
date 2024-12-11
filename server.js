@@ -417,6 +417,12 @@ async function detectAndAwardBadges() {
   }
 }
 
+async function promoteToAdmin(req, res) {
+  const { uid } = req.body;
+  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
+  res.status(200).send({ message: 'User promoted to admin' });
+}
+
 
 // ROUTES
 app.post('/promoteToAdmin', promoteToAdmin);
