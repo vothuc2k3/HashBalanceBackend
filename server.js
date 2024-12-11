@@ -166,6 +166,38 @@ async function sendPushNotification(req, res) {
   }
 }
 
+async function sendPushNotificationInternal({ tokens, message, title, data, type }) {
+  if (!Array.isArray(tokens) || tokens.length === 0) {
+    throw new Error("Tokens array is required and should not be empty");
+  }
+
+  const payload = {
+    notification: { title, body: message },
+    data: { type, ...data },
+  };
+
+  try {
+    const responses = await admin.messaging().sendEachForMulticast({ tokens, ...payload });
+    const failedTokens = [];
+
+    responses.responses.forEach((response, index) => {
+      if (!response.success) {
+        failedTokens.push({ token: tokens[index], error: response.error.message || "Unknown error" });
+      }
+    });
+
+    if (failedTokens.length > 0) {
+      console.error("Failed to send some notifications:", failedTokens);
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error sending push notification:", error.message);
+    throw error;
+  }
+}
+
+
 async function analyzeImageSafety(base64Image) {
   const API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_CLOUD_API_KEY}`;
 
@@ -292,29 +324,21 @@ async function checkAdminRole(req, res) {
   }
 }
 
-async function promoteToAdmin(req, res) {
-  const { uid } = req.body;
-  await admin.auth().setCustomUserClaims(uid, { role: 'admin' });
-  res.status(200).send({ message: 'User promoted to admin' });
-}
-
 async function detectAndAwardBadges() {
   try {
     console.log("Detecting users eligible for badges...");
 
-    // Fetch all badges
     const badgesSnapshot = await db.collection("badges").get();
     if (badgesSnapshot.empty) {
       console.log("No badges found.");
       return;
     }
 
-    const badges = badgesSnapshot.docs.map(doc => ({
+    const badges = badgesSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    // Fetch all users
     const usersSnapshot = await db.collection("users").get();
     if (usersSnapshot.empty) {
       console.log("No users found.");
@@ -322,35 +346,77 @@ async function detectAndAwardBadges() {
     }
 
     const batch = db.batch();
+    const notifications = [];
 
-    usersSnapshot.docs.forEach(userDoc => {
+    usersSnapshot.docs.forEach((userDoc) => {
       const userData = userDoc.data();
       const userId = userDoc.id;
       const userActivityPoint = userData.activityPoint || 0;
       const currentBadgeIds = new Set(userData.badgeIds || []);
+      const userDevices = userData.userDevices || [];
+      const userNotificationsRef = db
+        .collection("users")
+        .doc(userId)
+        .collection("notifications");
 
-      // Check eligible badges
-      badges.forEach(badge => {
+      badges.forEach((badge) => {
         if (
-          userActivityPoint >= badge.threshold && // Check if threshold is met
-          !currentBadgeIds.has(badge.id) // Ensure badge is not already awarded
+          userActivityPoint >= badge.threshold &&
+          !currentBadgeIds.has(badge.id)
         ) {
           currentBadgeIds.add(badge.id);
+
+          // Push notification payload
+          if (userDevices.length > 0) {
+            notifications.push({
+              tokens: userDevices,
+              message: `Congratulations! You've earned the "${badge.name}" badge! 🎉`,
+              title: "New Badge Earned",
+              data: { type: "badge_award", badgeId: badge.id, userId },
+              type: "badge_award",
+            });
+          }
+
+          const notificationId = db.collection("notifications").doc().id;
+          const notificationData = {
+            id: notificationId,
+            title: "New Badge Earned",
+            message: `You've earned the "${badge.name}" badge!`,
+            type: "badge_award",
+            targetUid: userId,
+            senderUid: "",
+            createdAt: admin.firestore.Timestamp.now(),
+            isRead: false,
+          };
+
+          batch.set(userNotificationsRef.doc(notificationId), notificationData);
         }
       });
 
-      // Update user document with new badges
       batch.update(db.collection("users").doc(userId), {
-        badgeIds: Array.from(currentBadgeIds), // Convert Set to Array
+        badgeIds: Array.from(currentBadgeIds),
       });
     });
 
     await batch.commit();
     console.log("Successfully detected and awarded badges.");
+
+    // Send push notifications
+    for (const notification of notifications) {
+      try {
+        await sendPushNotificationInternal(notification);
+        console.log(
+          `Successfully sent badge notification to user with tokens: ${notification.tokens}`
+        );
+      } catch (error) {
+        console.error("Error sending badge notification:", error.message);
+      }
+    }
   } catch (error) {
     console.error("Error detecting and awarding badges:", error);
   }
 }
+
 
 // ROUTES
 app.post('/promoteToAdmin', promoteToAdmin);
